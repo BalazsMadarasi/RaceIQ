@@ -216,3 +216,15 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# RaceIQ generated data (keep directory placeholders)
+data/cache/*
+!data/cache/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
