@@ -16,6 +16,7 @@ sessions using data loaded through FastF1.
 - Plotly pace-distribution and lap-time-evolution visualizations
 - Selectable seasons and Grands Prix with chronologically ordered available sessions
 - Streamlit Session Overview with KPI cards, a pace table, charts, and driver selection
+- Interactive Track & Telemetry Explorer for individual driver laps
 
 Session choices come from each FastF1 event schedule, including the historical Sprint
 Shootout and Sprint Qualifying names where applicable. Race and Sprint dashboards distinguish
@@ -25,6 +26,22 @@ types show driver-lap counts without presenting a race-length metric.
 The same conservative lap preparation is currently used across session types. Qualifying
 views are descriptive and do not yet separate Q1, Q2, and Q3 or model changing track
 conditions.
+
+## Track & Telemetry Explorer
+
+Open **Track & Telemetry Explorer** from Streamlit's page navigation. Select a season,
+Grand Prix, session, driver, and timed non-deleted lap to view an interactive 3D circuit
+generated from real FastF1 position and speed telemetry.
+
+The horizontal circuit shape uses FastF1's `X` and `Y` channels. The visualization's
+vertical height is a normalized, visually scaled speed profile—not physical elevation.
+Color and hover values retain speed in km/h. FastF1's merged lap telemetry can contain
+interpolated samples because car and position data are recorded separately.
+
+Telemetry-enabled sessions are loaded only on this page and retained in a small in-memory
+cache. Individual prepared laps are cached separately. Initial loads can take longer and
+require network access; telemetry may be incomplete or unavailable for some historical or
+future sessions.
 
 Representative laps exclude missing lap times, pit-in and pit-out laps, explicitly
 inaccurate laps, and deleted laps. No statistical outlier or `TrackStatus` filtering is
