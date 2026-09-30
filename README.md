@@ -38,10 +38,12 @@ vertical height is a normalized, visually scaled speed profile—not physical el
 Color and hover values retain speed in km/h. FastF1's merged lap telemetry can contain
 interpolated samples because car and position data are recorded separately.
 
-Telemetry-enabled sessions are loaded only on this page and retained in a small in-memory
-cache. Individual prepared laps are cached separately. Initial loads can take longer and
-require network access; telemetry may be incomplete or unavailable for some historical or
-future sessions.
+Telemetry-enabled sessions are loaded only on this page and retained in a small,
+FastF1-version-aware in-memory cache. Individual prepared laps are cached separately.
+RaceIQ requires FastF1 3.8.3 or later in the 3.8 release line; this includes the parser
+updates needed for 2026 telemetry. Initial loads can take longer and require network access.
+Upstream telemetry may still be incomplete or unavailable for a particular session, driver,
+or lap, and RaceIQ reports those cases without substituting fabricated data.
 
 Representative laps exclude missing lap times, pit-in and pit-out laps, explicitly
 inaccurate laps, and deleted laps. No statistical outlier or `TrackStatus` filtering is
@@ -57,7 +59,7 @@ currently applied.
 ## Tech stack
 
 - Python 3.12
-- FastF1, pandas, and NumPy
+- FastF1 3.8.3+, pandas, and NumPy
 - Plotly and Streamlit
 - pytest and Ruff
 

@@ -1,14 +1,20 @@
+import logging
 from datetime import date
 
+import fastf1
 import pandas as pd
 import streamlit as st
 from fastf1.core import Session
 
 from raceiq.data.fastf1_client import get_event_session_options, load_session
 from raceiq.data.telemetry import (
+    DriverTelemetryUnavailableError,
+    LapTelemetryUnavailableError,
+    SessionTelemetryUnavailableError,
     get_available_drivers,
     get_driver_lap_options,
     get_lap_telemetry,
+    validate_session_telemetry,
 )
 from raceiq.visualization.track import plot_3d_speed_track, prepare_track_telemetry
 
@@ -16,6 +22,9 @@ DEFAULT_YEAR = 2024
 DEFAULT_EVENT = "Italian Grand Prix"
 DEFAULT_SESSION = "Qualifying"
 FIRST_SUPPORTED_YEAR = 2018
+FASTF1_VERSION = fastf1.__version__
+
+LOGGER = logging.getLogger(__name__)
 
 
 @st.cache_data(show_spinner=False, max_entries=8)
@@ -25,15 +34,22 @@ def load_track_event_options(year: int) -> dict[str, list[str]]:
 
 
 @st.cache_resource(show_spinner=False, max_entries=2)
-def load_track_session(year: int, event: str, session_type: str) -> Session:
+def load_track_session(
+    year: int,
+    event: str,
+    session_type: str,
+    fastf1_version: str,
+) -> Session:
     """Load a telemetry-enabled session and retain it for lap changes."""
-    return load_session(
+    session = load_session(
         year,
         event,
         session_type,
         telemetry=True,
         weather=False,
     )
+    validate_session_telemetry(session)
+    return session
 
 
 @st.cache_data(show_spinner=False, max_entries=64)
@@ -43,9 +59,10 @@ def load_prepared_lap_telemetry(
     session_type: str,
     driver: str,
     lap_number: int,
+    fastf1_version: str,
 ) -> pd.DataFrame:
     """Extract and prepare one selected lap's telemetry with explicit cache keys."""
-    session = load_track_session(year, event, session_type)
+    session = load_track_session(year, event, session_type, fastf1_version)
     telemetry = get_lap_telemetry(session, driver, lap_number)
     return prepare_track_telemetry(telemetry)
 
@@ -78,9 +95,9 @@ selected_year = st.sidebar.selectbox(
 try:
     with st.spinner(f"Loading the {selected_year} event schedule..."):
         event_options = load_track_event_options(selected_year)
-except Exception as error:
+except Exception:
+    LOGGER.exception("Could not load the %s event schedule.", selected_year)
     st.error(f"The {selected_year} event schedule could not be loaded. Try again later.")
-    st.caption(f"Technical details: {error}")
     st.stop()
 
 if not event_options:
@@ -129,13 +146,35 @@ st.caption(f"{selected_year} · {selected_event} · {selected_session}")
 
 try:
     with st.spinner("Loading telemetry-enabled session data..."):
-        session = load_track_session(selected_year, selected_event, selected_session)
-except Exception as error:
-    st.error(
-        f"{selected_session} telemetry is unavailable for the {selected_year} "
-        f"{selected_event}, or the session could not be loaded."
+        session = load_track_session(
+            selected_year,
+            selected_event,
+            selected_session,
+            FASTF1_VERSION,
+        )
+except SessionTelemetryUnavailableError:
+    LOGGER.exception(
+        "Telemetry unavailable for %s %s %s.",
+        selected_year,
+        selected_event,
+        selected_session,
     )
-    st.caption(f"Technical details: {error}")
+    st.error(
+        f"Telemetry is unavailable for the {selected_year} {selected_event} "
+        f"{selected_session}. Try another session or season."
+    )
+    st.stop()
+except Exception:
+    LOGGER.exception(
+        "Could not load %s %s %s.",
+        selected_year,
+        selected_event,
+        selected_session,
+    )
+    st.error(
+        f"The {selected_year} {selected_event} {selected_session} could not be loaded. "
+        "Check your connection and try again."
+    )
     st.stop()
 
 available_drivers = get_available_drivers(session)
@@ -143,16 +182,10 @@ if not available_drivers:
     st.warning("No drivers with suitable timed laps are available for this session.")
     st.stop()
 
-driver_context = (selected_year, selected_event, selected_session)
-driver_context_key = "_track_driver_context"
-if st.session_state.get(driver_context_key) != driver_context:
-    st.session_state["track_driver"] = available_drivers[0]
-    st.session_state[driver_context_key] = driver_context
-
 selected_driver = st.sidebar.selectbox(
     "Driver",
     options=available_drivers,
-    key="track_driver",
+    key=f"track_driver::{selected_year}::{selected_event}::{selected_session}",
 )
 lap_options = get_driver_lap_options(session, selected_driver)
 if lap_options.empty:
@@ -162,19 +195,21 @@ if lap_options.empty:
 lap_times = lap_options.set_index("LapNumber")["LapTime"].to_dict()
 available_laps = lap_options["LapNumber"].tolist()
 fastest_lap_number = int(lap_options.loc[lap_options["LapTime"].idxmin(), "LapNumber"])
-
-lap_context = (*driver_context, selected_driver)
-lap_context_key = "_track_lap_context"
-if st.session_state.get(lap_context_key) != lap_context:
-    st.session_state["track_lap"] = fastest_lap_number
-    st.session_state[lap_context_key] = lap_context
-
-selected_lap = st.sidebar.selectbox(
-    "Lap",
-    options=available_laps,
-    format_func=lambda lap: f"Lap {lap} — {format_lap_time(lap_times[lap])}",
-    key="track_lap",
+lap_labels = {
+    f"Lap {lap_number} — {format_lap_time(lap_times[lap_number])}": lap_number
+    for lap_number in available_laps
+}
+fastest_lap_label = next(
+    label for label, lap_number in lap_labels.items() if lap_number == fastest_lap_number
 )
+
+selected_lap_label = st.sidebar.selectbox(
+    "Lap",
+    options=list(lap_labels),
+    index=list(lap_labels).index(fastest_lap_label),
+    key=(f"track_lap::{selected_year}::{selected_event}::{selected_session}::{selected_driver}"),
+)
+selected_lap = lap_labels[selected_lap_label]
 selected_lap_time = lap_times[selected_lap]
 
 try:
@@ -185,14 +220,63 @@ try:
             selected_session,
             selected_driver,
             selected_lap,
+            FASTF1_VERSION,
         )
         figure = plot_3d_speed_track(telemetry)
-except Exception as error:
-    st.error(
-        f"Lap {selected_lap} for {selected_driver} does not contain enough usable position "
-        "and speed telemetry for this visualization."
+except SessionTelemetryUnavailableError:
+    LOGGER.exception(
+        "Session telemetry became unavailable for %s %s %s.",
+        selected_year,
+        selected_event,
+        selected_session,
     )
-    st.caption(f"Technical details: {error}")
+    st.error(
+        f"Telemetry is unavailable for the {selected_year} {selected_event} "
+        f"{selected_session}. Try another session or season."
+    )
+    st.stop()
+except DriverTelemetryUnavailableError:
+    LOGGER.exception(
+        "Driver telemetry unavailable for %s in %s %s %s.",
+        selected_driver,
+        selected_year,
+        selected_event,
+        selected_session,
+    )
+    st.error(
+        f"Telemetry is unavailable for {selected_driver} in this session. "
+        "Try another driver or session."
+    )
+    st.stop()
+except LapTelemetryUnavailableError:
+    LOGGER.exception(
+        "Lap telemetry unavailable for %s lap %s.",
+        selected_driver,
+        selected_lap,
+    )
+    st.error(
+        f"Lap {selected_lap} for {selected_driver} has incomplete or unavailable telemetry. "
+        "Try another lap."
+    )
+    st.stop()
+except ValueError:
+    LOGGER.exception(
+        "Lap telemetry could not be prepared for %s lap %s.",
+        selected_driver,
+        selected_lap,
+    )
+    st.error(
+        f"Lap {selected_lap} for {selected_driver} contains too few usable telemetry "
+        "samples for this visualization."
+    )
+    st.stop()
+except Exception:
+    LOGGER.exception(
+        "Unexpected telemetry error for %s lap %s.",
+        selected_driver,
+        selected_lap,
+    )
+    st.error("The telemetry could not be prepared. Check your connection and try again.")
     st.stop()
 
 lap_distance = telemetry["Distance"].max() - telemetry["Distance"].min()
@@ -204,7 +288,13 @@ metric_columns[3].metric("Maximum speed", f"{telemetry['Speed'].max():.1f} km/h"
 metric_columns[4].metric("Minimum speed", f"{telemetry['Speed'].min():.1f} km/h")
 metric_columns[5].metric("Approx. distance", f"{lap_distance / 1000:.3f} km")
 
-st.plotly_chart(figure, width="stretch", config={"scrollZoom": True})
+st.header("3D speed profile")
+st.caption("Raised height is visually scaled speed, not physical track elevation.")
+st.plotly_chart(
+    figure,
+    width="stretch",
+    config={"scrollZoom": True, "displaylogo": False},
+)
 
 st.header("Methodology and limitations")
 st.markdown(

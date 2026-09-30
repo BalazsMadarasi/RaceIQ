@@ -64,4 +64,7 @@ def test_plot_3d_speed_track_returns_spatial_speed_figure_without_mutation() -> 
         prepare_track_telemetry(telemetry)["PlotX"].tolist()
     )
     assert figure.data[1].z[0] < figure.data[1].z[-1]
+    assert figure.layout.showlegend is False
+    assert figure.layout.title.text is None
+    assert figure.data[1].line.colorbar.title.text == "Speed (km/h)"
     pd.testing.assert_frame_equal(telemetry, original)
