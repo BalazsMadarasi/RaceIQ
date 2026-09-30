@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from raceiq.data.processing import prepare_laps
+from raceiq.data.processing import get_recorded_lap_count, prepare_laps
 
 
 def test_prepare_laps_converts_timing_columns_to_seconds() -> None:
@@ -53,3 +53,20 @@ def test_prepare_laps_adds_pit_flags_from_timing_values() -> None:
 
     assert prepared["IsPitInLap"].tolist() == [True, False]
     assert prepared["IsPitOutLap"].tolist() == [False, True]
+
+
+def test_get_recorded_lap_count_uses_highest_driver_lap() -> None:
+    laps = pd.DataFrame(
+        {
+            "Driver": ["AAA", "AAA", "AAA", "BBB", "BBB", "CCC"],
+            "LapNumber": [1.0, 2.0, 3.0, 1.0, 2.0, pd.NA],
+        }
+    )
+
+    assert get_recorded_lap_count(laps) == 3
+
+
+def test_get_recorded_lap_count_handles_missing_lap_numbers() -> None:
+    laps = pd.DataFrame({"Driver": ["AAA", "BBB"]})
+
+    assert get_recorded_lap_count(laps) is None

@@ -11,9 +11,7 @@ def plot_driver_pace_distribution(
 ) -> go.Figure:
     """Return a driver lap-time box plot ordered by median pace."""
     if pace_summary is not None:
-        driver_order = (
-            pace_summary.sort_values("MedianLapSeconds")["Driver"].dropna().tolist()
-        )
+        driver_order = pace_summary.sort_values("MedianLapSeconds")["Driver"].dropna().tolist()
     else:
         driver_order = (
             laps.groupby("Driver")["LapTimeSeconds"].median().sort_values().index.tolist()
@@ -31,7 +29,7 @@ def plot_driver_pace_distribution(
         points="outliers",
         category_orders={"Driver": driver_order},
         hover_data=hover_columns,
-        title="Representative Race-Lap Time Distribution by Driver",
+        title="Representative Lap-Time Distribution by Driver",
     )
     figure.update_traces(marker={"opacity": 0.6, "size": 5})
     figure.update_layout(

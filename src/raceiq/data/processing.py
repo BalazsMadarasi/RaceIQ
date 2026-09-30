@@ -25,3 +25,18 @@ def prepare_laps(laps: pd.DataFrame) -> pd.DataFrame:
         prepared["IsPitOutLap"] = prepared["PitOutTime"].notna()
 
     return prepared
+
+
+def get_recorded_lap_count(laps: pd.DataFrame) -> int | None:
+    """Return the highest valid recorded lap number, if one is available."""
+    if "LapNumber" not in laps.columns:
+        return None
+
+    lap_numbers = pd.to_numeric(laps["LapNumber"], errors="coerce")
+    valid_lap_numbers = lap_numbers[
+        lap_numbers.ge(1) & lap_numbers.lt(float("inf")) & lap_numbers.mod(1).eq(0)
+    ]
+    if valid_lap_numbers.empty:
+        return None
+
+    return int(valid_lap_numbers.max())

@@ -12,9 +12,7 @@ def test_distribution_returns_figure_in_median_order_without_mutation() -> None:
         }
     )
     original = laps.copy(deep=True)
-    pace_summary = pd.DataFrame(
-        {"Driver": ["AAA", "BBB"], "MedianLapSeconds": [92.0, 89.0]}
-    )
+    pace_summary = pd.DataFrame({"Driver": ["AAA", "BBB"], "MedianLapSeconds": [92.0, 89.0]})
 
     figure = plot_driver_pace_distribution(laps, pace_summary)
 
