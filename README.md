@@ -1,106 +1,154 @@
 # RaceIQ
 
-RaceIQ is a Formula 1 performance analytics project built with a reusable Python package
-and an interactive Streamlit dashboard. Its first dashboard explores historical Formula 1
-sessions using data loaded through FastF1.
+RaceIQ is an interactive Formula 1 data analytics application built with Python and
+FastF1 for exploring driver pace, lap-time evolution, and telemetry.
 
-> **Status:** Early development. The selectable Session Overview MVP is functional;
-> additional analysis areas remain planned.
+## Project Status
 
-## Current functionality
+RaceIQ is actively under development. The current application provides a session-level
+pace dashboard and a single-lap 3D telemetry explorer. Synchronized multi-driver 3D race
+replay is planned but is not part of the current application.
 
-- FastF1 session loading with a local disk cache
-- Lap preparation with numeric lap and sector times
-- Conservative representative-lap filtering
-- Per-driver fastest, median, mean, and standard-deviation pace summaries
-- Plotly pace-distribution and lap-time-evolution visualizations
-- Selectable seasons and Grands Prix with chronologically ordered available sessions
-- Streamlit Session Overview with KPI cards, a pace table, charts, and driver selection
-- Interactive Track & Telemetry Explorer for individual driver laps
+## Features
 
-Session choices come from each FastF1 event schedule, including the historical Sprint
-Shootout and Sprint Qualifying names where applicable. Race and Sprint dashboards distinguish
-the completed lap count from the total number of individual driver-lap records. Other session
-types show driver-lap counts without presenting a race-length metric.
+- Select Formula 1 seasons, Grand Prix weekends, and their available sessions.
+- Handle conventional and Sprint weekend formats from the FastF1 event schedule.
+- Prepare lap and sector timing data for analysis.
+- Filter structurally unsuitable laps from representative-lap analysis.
+- Compare descriptive pace metrics across drivers.
+- Explore interactive lap-time distributions and multi-driver lap-time evolution.
+- Inspect an individual lap through an interactive 3D track and speed visualization.
+- Cache FastF1 data locally and avoid loading telemetry on pages that do not require it.
 
-The same conservative lap preparation is currently used across session types. Qualifying
-views are descriptive and do not yet separate Q1, Q2, and Q3 or model changing track
-conditions.
+## 3D Track & Telemetry Explorer
 
-## Track & Telemetry Explorer
+The Track & Telemetry Explorer renders a selected timed lap as an interactive 3D circuit.
+The horizontal shape uses FastF1 `X` and `Y` position telemetry, while color represents
+speed in km/h.
 
-Open **Track & Telemetry Explorer** from Streamlit's page navigation. Select a season,
-Grand Prix, session, driver, and timed non-deleted lap to view an interactive 3D circuit
-generated from real FastF1 position and speed telemetry.
+The vertical height is a normalized, visually scaled representation of speed—not physical
+circuit elevation. FastF1 combines car and position streams sampled at different times, so
+the merged lap telemetry can contain interpolated values. Telemetry availability and quality
+vary by session, driver, and lap.
 
-The horizontal circuit shape uses FastF1's `X` and `Y` channels. The visualization's
-vertical height is a normalized, visually scaled speed profile—not physical elevation.
-Color and hover values retain speed in km/h. FastF1's merged lap telemetry can contain
-interpolated samples because car and position data are recorded separately.
+## Analytics Methodology
 
-Telemetry-enabled sessions are loaded only on this page and retained in a small,
-FastF1-version-aware in-memory cache. Individual prepared laps are cached separately.
-RaceIQ requires FastF1 3.8.3 or later in the 3.8 release line; this includes the parser
-updates needed for 2026 telemetry. Initial loads can take longer and require network access.
-Upstream telemetry may still be incomplete or unavailable for a particular session, driver,
-or lap, and RaceIQ reports those cases without substituting fabricated data.
+RaceIQ defines representative laps by excluding laps that:
 
-Representative laps exclude missing lap times, pit-in and pit-out laps, explicitly
-inaccurate laps, and deleted laps. No statistical outlier or `TrackStatus` filtering is
-currently applied.
+- have no valid lap time;
+- include a pit entry or pit exit;
+- are explicitly marked inaccurate by FastF1; or
+- are marked deleted.
 
-## Planned features
+No statistical outlier or track-status filtering is currently applied. Traffic, tire
+condition and degradation, fuel load, safety-car or yellow-flag periods, weather, and
+changing track conditions can affect the retained laps. The displayed fastest, median,
+mean, and variability metrics are descriptive summaries, not isolated measurements of
+driver performance. Qualifying summaries do not separate Q1, Q2, and Q3.
 
-- Driver comparison
-- Telemetry analysis
-- Strategy analysis
-- Season trends
-
-## Tech stack
+## Tech Stack
 
 - Python 3.12
-- FastF1 3.8.3+, pandas, and NumPy
-- Plotly and Streamlit
-- pytest and Ruff
+- FastF1
+- Pandas and NumPy
+- Plotly
+- Streamlit
+- pytest
+- Ruff
 
-## Local development
+## Architecture
 
-Create and activate a virtual environment, then install the runtime and development
-dependencies:
-
-```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements-dev.txt
+```text
+FastF1
+  ↓
+data loading and local caching
+  ↓
+processing
+  ↓
+analytics
+  ↓
+visualization
+  ↓
+Streamlit UI
 ```
 
-Start the Session Overview dashboard from the repository root:
+- `src/raceiq/data` loads FastF1 schedules and sessions, prepares laps, and validates
+  telemetry inputs.
+- `src/raceiq/analytics` filters representative laps and calculates driver pace summaries.
+- `src/raceiq/visualization` builds reusable Plotly pace and telemetry figures.
+- `app` contains the Streamlit session overview and Track & Telemetry Explorer.
+
+The package modules do not depend on Streamlit, keeping the deterministic processing and
+visualization code testable outside the UI.
+
+## Running Locally
+
+Python 3.12 is required. From the repository root, create a virtual environment:
+
+```text
+python -m venv .venv
+```
+
+Activate it on Windows PowerShell:
 
 ```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+On macOS or Linux:
+
+```bash
+source .venv/bin/activate
+```
+
+Install the project and development dependencies, then start Streamlit:
+
+```text
+python -m pip install -r requirements-dev.txt
 streamlit run app/main.py
 ```
 
-Run the project checks with:
+Initial FastF1 requests require network access and can take longer while the local cache is
+populated.
 
-```powershell
+## Quality Checks
+
+```text
 ruff check .
 ruff format --check .
 pytest
 ```
 
-## Repository structure
+The unit tests use local fixtures and synthetic data rather than live FastF1 requests.
+
+## Project Structure
 
 ```text
-app/                      Streamlit application entry point
-src/raceiq/data/          FastF1 loading and lap preparation
-src/raceiq/analytics/     Race-pace filtering and summaries
-src/raceiq/visualization/ Reusable Plotly figures
-tests/                    Unit tests
-scripts/                  Smoke tests and exploratory tools
-data/                     Ignored FastF1 cache and generated datasets
+app/                      Streamlit entry point and pages
+src/raceiq/data/          FastF1 access, lap preparation, telemetry validation
+src/raceiq/analytics/     Representative-lap filtering and pace summaries
+src/raceiq/visualization/ Plotly pace and 3D telemetry figures
+tests/                    Deterministic unit tests
+scripts/                  Smoke test and exploratory analysis
+data/                     Ignored FastF1 cache and generated data
 ```
 
-RaceIQ uses Formula 1 data made available through
-[FastF1](https://docs.fastf1.dev/). Users of the project are responsible for following
-the data provider's terms and applicable usage policies.
+## Limitations
+
+- Results depend on the availability and quality of upstream FastF1 data.
+- Telemetry is not available for every session, driver, or lap.
+- Current pace metrics are descriptive and do not control for race context.
+- The application is actively developed and is not yet publicly deployed.
+
+## Roadmap
+
+- Synchronized multi-driver 3D race replay.
+- Richer side-by-side driver telemetry comparisons.
+- Strategy analysis with explicitly documented assumptions.
+- Public deployment.
+
+## Data Attribution
+
+Formula 1 timing and telemetry data are accessed through
+[FastF1](https://docs.fastf1.dev/). RaceIQ is an unofficial personal portfolio project and
+is not affiliated with Formula 1.

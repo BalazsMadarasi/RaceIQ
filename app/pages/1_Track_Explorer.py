@@ -86,7 +86,7 @@ st.write(
 st.sidebar.header("Telemetry selection")
 available_years = list(range(date.today().year, FIRST_SUPPORTED_YEAR - 1, -1))
 selected_year = st.sidebar.selectbox(
-    "Year",
+    "Season",
     options=available_years,
     index=available_years.index(DEFAULT_YEAR),
     key="track_year",
@@ -115,7 +115,7 @@ if st.session_state.get(event_context_key) != selected_year:
     st.session_state[event_context_key] = selected_year
 
 selected_event = st.sidebar.selectbox(
-    "Event / Grand Prix",
+    "Grand Prix",
     options=available_events,
     key="track_event",
 )

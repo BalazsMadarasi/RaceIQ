@@ -1,3 +1,4 @@
+import logging
 from datetime import date
 
 import pandas as pd
@@ -15,14 +16,16 @@ FIRST_SUPPORTED_YEAR = 2018
 RACE_LENGTH_SESSION_TYPES = {"Race", "Sprint"}
 QUALIFYING_SESSION_TYPES = {"Qualifying", "Sprint Qualifying", "Sprint Shootout"}
 
+LOGGER = logging.getLogger(__name__)
 
-@st.cache_data(show_spinner=False)
+
+@st.cache_data(show_spinner=False, max_entries=8)
 def load_event_options(year: int) -> dict[str, list[str]]:
     """Return cached events and chronological session names for a season."""
     return get_event_session_options(year)
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, max_entries=8)
 def load_dashboard_data(
     year: int,
     event: str,
@@ -55,7 +58,7 @@ st.write(
 st.sidebar.header("Session selection")
 available_years = list(range(date.today().year, FIRST_SUPPORTED_YEAR - 1, -1))
 selected_year = st.sidebar.selectbox(
-    "Year",
+    "Season",
     options=available_years,
     index=available_years.index(DEFAULT_YEAR),
     key="selected_year",
@@ -64,9 +67,9 @@ selected_year = st.sidebar.selectbox(
 try:
     with st.spinner(f"Loading the {selected_year} event schedule..."):
         event_options = load_event_options(selected_year)
-except Exception as error:
+except Exception:
+    LOGGER.exception("Could not load the %s event schedule.", selected_year)
     st.error(f"The {selected_year} event schedule could not be loaded. Try again later.")
-    st.caption(f"Technical details: {error}")
     st.stop()
 
 if not event_options:
@@ -84,7 +87,7 @@ if st.session_state.get(event_context_key) != selected_year:
     st.session_state[event_context_key] = selected_year
 
 selected_event = st.sidebar.selectbox(
-    "Event / Grand Prix",
+    "Grand Prix",
     options=available_events,
     key="selected_event",
 )
@@ -104,7 +107,7 @@ if st.session_state.get(session_context_key) != session_context:
     st.session_state[session_context_key] = session_context
 
 selected_session_type = st.sidebar.selectbox(
-    "Session type",
+    "Session",
     options=available_sessions,
     key="selected_session_type",
 )
@@ -118,12 +121,17 @@ try:
             selected_event,
             selected_session_type,
         )
-except Exception as error:
+except Exception:
+    LOGGER.exception(
+        "Could not load %s %s %s.",
+        selected_year,
+        selected_event,
+        selected_session_type,
+    )
     st.error(
         f"{selected_session_type} data is unavailable for the {selected_year} "
         f"{selected_event}, or it could not be loaded. Choose another selection or try again."
     )
-    st.caption(f"Technical details: {error}")
     st.stop()
 
 raw_lap_count = len(prepared_laps)
